@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 const CameraScanner = () => {
     const videoRef = useRef(null);
@@ -8,9 +8,12 @@ const CameraScanner = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
     const [cameraActive, setCameraActive] = useState(false);
+    const [backendStatus, setBackendStatus] = useState(null);
 
-    // Start camera automatically when component mounts
+    // Check backend status when component mounts
     useEffect(() => {
+        checkBackendStatus();
+        
         return () => {
             // Cleanup: stop tracks when component unmounts
             if (videoRef.current && videoRef.current.srcObject) {
@@ -20,9 +23,38 @@ const CameraScanner = () => {
         };
     }, []);
 
+    // Function to check if backend is running
+    const checkBackendStatus = async () => {
+        try {
+            const response = await fetch("http://localhost:5000/health", {
+                method: "GET",
+            });
+            
+            if (response.ok) {
+                setBackendStatus("connected");
+                setError(null);
+            } else {
+                setBackendStatus("error");
+                setError("Backend service is not responding correctly");
+            }
+        } catch (error) {
+            console.error("Backend connection error:", error);
+            setBackendStatus("error");
+            setError("Cannot connect to backend service. Please make sure the Python server is running.");
+        }
+    };
+
     // Function to start the camera
     const startCamera = async () => {
         try {
+            // Check backend status first
+            if (backendStatus !== "connected") {
+                await checkBackendStatus();
+                if (backendStatus !== "connected") {
+                    return; // Don't start camera if backend isn't available
+                }
+            }
+            
             // Stop any existing tracks
             if (videoRef.current && videoRef.current.srcObject) {
                 const tracks = videoRef.current.srcObject.getTracks();
@@ -76,35 +108,33 @@ const CameraScanner = () => {
                 const imageDataUrl = canvas.toDataURL("image/jpeg");
                 setCapturedImage(imageDataUrl);
 
-                canvas.toBlob(async (blob) => {
-                    const formData = new FormData();
-                    formData.append("image", blob, "medicine.jpg");
+                // Extract the base64 data
+                const base64Data = imageDataUrl.split(',')[1];
 
-                    try {
-                        const response = await fetch("http://localhost:5000/upload", {
-                            method: "POST",
-                            body: formData,
-                        });
+                // Send to the API using the base64 data directly
+                const response = await fetch("http://localhost:5000/upload", {
+                    method: "POST",
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        image_data: imageDataUrl
+                    }),
+                });
 
-                        const data = await response.json();
-                        
-                        if (!response.ok) {
-                            throw new Error(data.message || "Failed to process the image");
-                        }
-                        
-                        setMedicineInfo(data);
-                        speakMedicineInfo(data.medicine, data.description);
-                        setIsLoading(false);
-                    } catch (error) {
-                        console.error("Error uploading image:", error);
-                        setError(error.message || "Failed to process the image");
-                        setIsLoading(false);
-                        speakError();
-                    }
-                }, "image/jpeg", 0.9);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    setMedicineInfo(data);
+                    speakMedicineInfo(data.medicine, data.description);
+                } else {
+                    throw new Error(data.message || data.error || "Failed to process the image");
+                }
+                
+                setIsLoading(false);
             } catch (error) {
-                console.error("Error capturing image:", error);
-                setError("Failed to capture image");
+                console.error("Error capturing/processing image:", error);
+                setError(error.message || "Failed to process the image");
                 setIsLoading(false);
                 speakError();
             }
@@ -139,6 +169,19 @@ const CameraScanner = () => {
     return (
         <div className="container mx-auto p-4">
             <h2 className="text-2xl font-bold mb-4 text-center">Medicine Scanner</h2>
+            
+            {backendStatus === "error" && (
+                <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4">
+                    <p className="font-bold">Backend Connection Error</p>
+                    <p>{error}</p>
+                    <button 
+                        onClick={checkBackendStatus} 
+                        className="mt-2 bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded"
+                    >
+                        Retry Connection
+                    </button>
+                </div>
+            )}
             
             <div className="mb-4 relative">
                 <video 
@@ -178,6 +221,7 @@ const CameraScanner = () => {
                     <button 
                         onClick={startCamera} 
                         className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg"
+                        disabled={backendStatus === "error"}
                     >
                         Start Camera
                     </button>
@@ -201,7 +245,7 @@ const CameraScanner = () => {
                 )}
             </div>
             
-            {error && (
+            {error && backendStatus !== "error" && (
                 <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4">
                     <p>{error}</p>
                 </div>
@@ -213,8 +257,14 @@ const CameraScanner = () => {
                     
                     {medicineInfo.description && (
                         <div className="mb-2">
-                            <p className="font-semibold">Description:</p>
+                            <p className="font-semibold">Description/Dosage:</p>
                             <p>{medicineInfo.description}</p>
+                        </div>
+                    )}
+                    
+                    {medicineInfo.source && (
+                        <div className="mt-4 text-sm text-gray-600">
+                            <p>Source: {medicineInfo.source}</p>
                         </div>
                     )}
                     
@@ -222,13 +272,6 @@ const CameraScanner = () => {
                         <div className="mb-2">
                             <p className="font-semibold">Uses:</p>
                             <p>{medicineInfo.uses}</p>
-                        </div>
-                    )}
-                    
-                    {medicineInfo.dosage && (
-                        <div className="mb-2">
-                            <p className="font-semibold">Dosage:</p>
-                            <p>{medicineInfo.dosage}</p>
                         </div>
                     )}
                     

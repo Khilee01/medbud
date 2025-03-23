@@ -1,72 +1,96 @@
 import sqlite3
+import os
+
+# Database file path
+DB_PATH = 'medicine_reminder.db'
 
 def initialize_database():
     """
-    Initialize the medications database if it doesn't exist.
-    Creates a simple table with medication names and dosages.
+    Initialize the database with required tables if they don't exist.
     """
     try:
-        conn = sqlite3.connect('medbuddy.db')
+        # Create database directory if it doesn't exist
+        os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+        
+        # Connect to database
+        conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         
-        # Create medications table if it doesn't exist
+        # Create medicines table if it doesn't exist
         cursor.execute('''
-        CREATE TABLE IF NOT EXISTS medications (
-            id INTEGER PRIMARY KEY,
-            name TEXT NOT NULL,
-            dosage TEXT NOT NULL
+        CREATE TABLE IF NOT EXISTS medicines (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            dosage TEXT,
+            source TEXT
         )
         ''')
         
-        # Insert some sample data if table is empty
-        cursor.execute("SELECT COUNT(*) FROM medications")
-        count = cursor.fetchone()[0]
-        
-        if count == 0:
-            sample_data = [
-                ('Ibuprofen', 'Adult dosage: 200-400mg every 4-6 hours as needed, not to exceed 1200mg per day'),
-                ('Acetaminophen', 'Adult dosage: 325-650mg every 4-6 hours as needed, not to exceed 3000mg per day'),
-                ('Aspirin', 'Adult dosage: 325-650mg every 4-6 hours as needed, not to exceed 4000mg per day'),
-                ('Loratadine', 'Adult dosage: 10mg once daily')
-            ]
-            
-            cursor.executemany("INSERT INTO medications (name, dosage) VALUES (?, ?)", sample_data)
-            print(f"Added {len(sample_data)} sample medications to database")
-        
         conn.commit()
         conn.close()
-        print("Database initialized successfully")
+        
+        print("Database initialized successfully.")
+        return True
         
     except Exception as e:
-        print(f"Database initialization error: {e}")
+        print(f"Error initializing database: {e}")
+        return False
 
 def search_medication(medication_name):
     """
-    Search the database for medication information.
+    Search for medication information in the database.
     Returns a dictionary with medication info or None if not found.
     """
     try:
-        # Connect to SQLite database
-        conn = sqlite3.connect('medbuddy.db')
+        conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         
-        # Query the database for the medication
-        cursor.execute("SELECT name, dosage FROM medications WHERE name LIKE ?", ('%' + medication_name + '%',))
+        # Search for medication by name (case insensitive)
+        cursor.execute("SELECT name, dosage, source FROM medicines WHERE LOWER(name) = LOWER(?)", (medication_name,))
         result = cursor.fetchone()
         
         conn.close()
         
         if result:
-            name, dosage = result
             return {
-                'name': name,
-                'dosage': dosage,
-                'source': 'local database'
+                'name': result[0],
+                'dosage': result[1],
+                'source': result[2]
             }
         else:
-            print(f"Medication '{medication_name}' not found in local database.")
+            print(f"No information found for '{medication_name}' in local database.")
             return None
             
     except Exception as e:
         print(f"Database search error: {e}")
         return None
+
+def save_medication(medication_info):
+    """
+    Save medication information to the database.
+    """
+    if not medication_info or 'name' not in medication_info:
+        return False
+    
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            "INSERT OR REPLACE INTO medicines (name, dosage, source) VALUES (?, ?, ?)",
+            (
+                medication_info.get('name', ''),
+                medication_info.get('dosage', ''),
+                medication_info.get('source', '')
+            )
+        )
+        
+        conn.commit()
+        conn.close()
+        
+        print(f"Medication '{medication_info['name']}' saved to database.")
+        return True
+        
+    except Exception as e:
+        print(f"Error saving to database: {e}")
+        return False
