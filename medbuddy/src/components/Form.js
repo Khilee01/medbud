@@ -1,10 +1,12 @@
 import React, { useState } from "react";
+import axios from 'axios';
 import "./Form.css";
 
 const Form = () => {
     const [numMeds, setNumMeds] = useState(0);
     const [medicines, setMedicines] = useState([]);
     const [successMessage, setSuccessMessage] = useState("");
+    const [errorMessage, setErrorMessage] = useState("");
 
     const handleNumMedsChange = (e) => {
         const count = parseInt(e.target.value, 10) || 0;
@@ -44,9 +46,10 @@ const Form = () => {
         });
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
         setSuccessMessage("");
+        setErrorMessage("");
 
         // Check for missing required fields
         let missingFields = [];
@@ -75,8 +78,53 @@ const Form = () => {
             return;
         }
 
-        console.log(medicines);
-        setSuccessMessage("🎉 Good job! Form has been saved successfully!");
+        // Prepare form data for submission
+        const formData = {
+            name: name,
+            age: parseInt(age, 10),
+            doctor: doctor,
+            medicines: medicines
+        };
+
+        try {
+            // Send data to backend
+            const response = await axios.post('http://localhost:5000/submit-form', formData, {
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            // Handle successful submission
+            setSuccessMessage("🎉 Good job! Form has been saved successfully!");
+            
+            // Reset form
+            document.getElementById("name").value = "";
+            document.getElementById("age").value = "";
+            document.getElementById("doctor").value = "";
+            document.getElementById("numMeds").value = "0";
+            setNumMeds(0);
+            setMedicines([]);
+
+        } catch (error) {
+            // Detailed error handling
+            console.error('Submission error:', error);
+            
+            let errorMsg = "Error submitting form. Please try again.";
+            
+            if (error.response) {
+                // The request was made and the server responded with a status code
+                // that falls out of the range of 2xx
+                errorMsg = error.response.data.error || 
+                           error.response.data.message || 
+                           "Server responded with an error.";
+                console.error('Error details:', error.response.data);
+            } else if (error.request) {
+                // The request was made but no response was received
+                errorMsg = "No response received from the server. Please check your connection.";
+            }
+            
+            setErrorMessage(errorMsg);
+        }
     };
 
     return (
@@ -128,6 +176,7 @@ const Form = () => {
                 </form>
 
                 {successMessage && <div className="success-message">{successMessage}</div>}
+                {errorMessage && <div className="error-message">{errorMessage}</div>}
             </div>
         </div>
     );

@@ -5,13 +5,39 @@ import tempfile
 import base64
 import re
 
-# Import our OCR functions
+# Import our custom modules
 from ocr_processor import extract_text, extract_medication_name
 from fda_api import get_medication_info
-from database_handler import initialize_database, search_medication
+from database_handler import initialize_database, submit_form_data, search_medication
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
+
+@app.route('/submit-form', methods=['POST'])
+def submit_form():
+    try:
+        # Get form data from request
+        form_data = request.json
+        
+        # Validate required fields
+        required_fields = ['name', 'age', 'doctor', 'medicines']
+        for field in required_fields:
+            if field not in form_data:
+                return jsonify({'error': f'Missing required field: {field}'}), 400
+        
+        # Initialize database
+        initialize_database()
+        
+        # Submit form data
+        success, message = submit_form_data(form_data)
+        
+        if success:
+            return jsonify({'message': 'Form submitted successfully'}), 200
+        else:
+            return jsonify({'error': message}), 500
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/upload', methods=['POST'])
 def upload_image():
@@ -84,7 +110,10 @@ def upload_image():
         response = {
             'medicine': medication_info.get('name', medication_name),
             'description': medication_info.get('dosage', 'No description available'),
-            'source': medication_info.get('source', 'Unknown')
+            'source': medication_info.get('source', 'Unknown'),
+            'uses': medication_info.get('uses', 'No uses specified'),
+            'side_effects': medication_info.get('side_effects', 'No side effects noted'),
+            'warnings': medication_info.get('warnings', 'No specific warnings')
         }
         
         return jsonify(response)
