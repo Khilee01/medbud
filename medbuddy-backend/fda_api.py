@@ -7,7 +7,9 @@ def get_medication_info(medication_name):
     """
     try:
         # FDA API endpoint for drug information
+
         url = f"https://api.fda.gov/drug/label.json?search=openfda.brand_name:{medication_name}&limit=1"
+
         
         response = requests.get(url)
         data = response.json()
