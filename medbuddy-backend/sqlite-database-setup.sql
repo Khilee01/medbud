@@ -42,3 +42,16 @@ CREATE TABLE dosage_times (
 -- Create indices for better query performance
 CREATE INDEX idx_prescriptions_user_id ON prescriptions(user_id);
 CREATE INDEX idx_dosage_times_prescription_id ON dosage_times(prescription_id);
+
+CREATE TABLE dosage_tracking (
+    tracking_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    medicine_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    doses_taken INTEGER DEFAULT 1,
+    total_doses_per_day INTEGER NOT NULL,
+    intake_date DATE DEFAULT (date('now')),
+    last_intake_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (medicine_id) REFERENCES medicines(medicine_id),
+    FOREIGN KEY (user_id) REFERENCES users(user_id),
+    UNIQUE(medicine_id, user_id, intake_date)
+);

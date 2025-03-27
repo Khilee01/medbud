@@ -1,5 +1,5 @@
+import axios from 'axios';
 import React, { useEffect, useRef, useState } from "react";
-
 const CameraScanner = () => {
     const videoRef = useRef(null);
     const canvasRef = useRef(null);
@@ -9,6 +9,9 @@ const CameraScanner = () => {
     const [error, setError] = useState(null);
     const [cameraActive, setCameraActive] = useState(false);
     const [backendStatus, setBackendStatus] = useState(null);
+    const [userName, setUserName] = useState('');
+    const [doseTrackingResult, setDoseTrackingResult] = useState(null);
+    const [doseHistory, setDoseHistory] = useState(null);
 
     // Check backend status when component mounts
     useEffect(() => {
@@ -156,6 +159,63 @@ const CameraScanner = () => {
         window.speechSynthesis.speak(speech);
     };
 
+      // New method for tracking dosage
+      const trackDosage = async () => {
+        if (!userName || !medicineInfo) {
+            setError('Please enter your name and scan a medicine first');
+            return;
+        }
+
+        try {
+            const response = await axios.post('http://localhost:5000/track-dosage', {
+                user_name: userName,
+                medicine_name: medicineInfo.medicine
+            });
+
+            setDoseTrackingResult(response.data);
+
+            // Optionally fetch dose history after tracking
+            await fetchDoseHistory();
+        } catch (error) {
+            console.error('Error tracking dosage', error);
+            setError(error.response?.data?.message || 'Failed to track dosage');
+        }
+    };
+
+    // Method to fetch dose history
+    const fetchDoseHistory = async () => {
+        if (!userName || !medicineInfo) return;
+
+        try {
+            const response = await axios.post('http://localhost:5000/dose-history', {
+                user_name: userName,
+                medicine_name: medicineInfo.medicine,
+                days: 7 // Optional: specify number of days
+            });
+
+            setDoseHistory(response.data.history);
+        } catch (error) {
+            console.error('Error fetching dose history', error);
+        }
+    };
+
+    // Method to get medication details
+    const fetchMedicationDetails = async () => {
+        if (!userName || !medicineInfo) return;
+
+        try {
+            const response = await axios.post('http://localhost:5000/medication-details', {
+                user_name: userName,
+                medicine_name: medicineInfo.medicine
+            });
+
+            // Handle medication details as needed
+            console.log('Medication Details:', response.data.details);
+        } catch (error) {
+            console.error('Error fetching medication details', error);
+        }
+    };
+    
     // Function to speak error messages
     const speakError = () => {
         if (!window.speechSynthesis) return;
@@ -169,7 +229,20 @@ const CameraScanner = () => {
     return (
         <div className="container mx-auto p-4">
             <h2 className="text-2xl font-bold mb-4 text-center">Medicine Scanner</h2>
-            
+            <div className="mb-4">
+                <label htmlFor="userName" className="block text-sm font-medium text-gray-700">
+                    Your Name
+                </label>
+                <input
+                    type="text"
+                    id="userName"
+                    value={userName}
+                    onChange={(e) => setUserName(e.target.value)}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                    placeholder="Enter your name"
+                />
+            </div>
+
             {backendStatus === "error" && (
                 <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4">
                     <p className="font-bold">Backend Connection Error</p>
@@ -250,6 +323,60 @@ const CameraScanner = () => {
                     <p>{error}</p>
                 </div>
             )}
+
+            {/* Dose Tracking Section */}
+            {medicineInfo && (
+                <div className="mt-4 bg-white p-4 rounded-lg shadow-md">
+                    <h3 className="text-xl font-bold mb-2">Dose Tracking</h3>
+                    
+                    <button 
+                        onClick={trackDosage}
+                        disabled={!userName}
+                        className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg mb-4"
+                    >
+                        Track Dosage
+                    </button>
+
+                    {/* Dose Tracking Result */}
+                    {doseTrackingResult && (
+                        <div className={`
+                            p-3 rounded-lg mb-4
+                            ${doseTrackingResult.status === 'dosage_tracked' ? 'bg-green-100' : 'bg-yellow-100'}
+                        `}>
+                            <p className="font-semibold">{doseTrackingResult.message}</p>
+                            {doseTrackingResult.doses_taken && (
+                                <p>Doses Taken: {doseTrackingResult.doses_taken} / {doseTrackingResult.total_doses}</p>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Dose History */}
+                    {doseHistory && (
+                        <div>
+                            <h4 className="text-lg font-semibold mb-2">Dose History (Last 7 Days)</h4>
+                            <table className="w-full border-collapse border border-gray-200">
+                                <thead>
+                                    <tr className="bg-gray-100">
+                                        <th className="border p-2">Date</th>
+                                        <th className="border p-2">Doses Taken</th>
+                                        <th className="border p-2">Total Doses</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {doseHistory.map((entry, index) => (
+                                        <tr key={index}>
+                                            <td className="border p-2">{entry.date}</td>
+                                            <td className="border p-2">{entry.doses_taken}</td>
+                                            <td className="border p-2">{entry.total_doses}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+            )}
+
             
             {medicineInfo && (
                 <div className="bg-white p-4 rounded-lg shadow-md">
@@ -290,6 +417,7 @@ const CameraScanner = () => {
                     )}
                 </div>
             )}
+            
         </div>
     );
 };
