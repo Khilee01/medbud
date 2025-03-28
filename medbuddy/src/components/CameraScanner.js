@@ -381,40 +381,6 @@ const CameraScanner = () => {
             {medicineInfo && (
                 <div className="bg-white p-4 rounded-lg shadow-md">
                     <h3 className="text-xl font-bold mb-2">{medicineInfo.medicine}</h3>
-                    
-                    {medicineInfo.description && (
-                        <div className="mb-2">
-                            <p className="font-semibold">Description/Dosage:</p>
-                            <p>{medicineInfo.description}</p>
-                        </div>
-                    )}
-                    
-                    {medicineInfo.source && (
-                        <div className="mt-4 text-sm text-gray-600">
-                            <p>Source: {medicineInfo.source}</p>
-                        </div>
-                    )}
-                    
-                    {medicineInfo.uses && (
-                        <div className="mb-2">
-                            <p className="font-semibold">Uses:</p>
-                            <p>{medicineInfo.uses}</p>
-                        </div>
-                    )}
-                    
-                    {medicineInfo.side_effects && (
-                        <div className="mb-2">
-                            <p className="font-semibold">Side Effects:</p>
-                            <p>{medicineInfo.side_effects}</p>
-                        </div>
-                    )}
-                    
-                    {medicineInfo.warnings && (
-                        <div>
-                            <p className="font-semibold">Warnings:</p>
-                            <p>{medicineInfo.warnings}</p>
-                        </div>
-                    )}
                 </div>
             )}
             
